@@ -1,5 +1,16 @@
 {
-  "stack": ["TypeScript", "C++", "Python"],
+  "stack": [
+    "TypeScript",
+    "C++",
+    "Python"
+  ],
   "tagline": "Build. Learn. Share.",
-  "visual_language": "Characters become identity."
+  "visual_language": "Characters become identity.",
+  "focus_areas": [
+    "AI / ML",
+    "Automation"
+  ],
+  "stack_card_languages": [],
+  "stack_card_technologies": [],
+  "stack_card_editors": []
 }

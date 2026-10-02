@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from routes.header import router as header_router
+from routes.stack import router as stack_router
 
 
 app = FastAPI(
@@ -11,6 +12,7 @@ app = FastAPI(
     version="0.1.0",
 )
 app.include_router(header_router)
+app.include_router(stack_router)
 
 
 @app.get("/health")

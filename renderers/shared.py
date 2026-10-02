@@ -43,11 +43,11 @@ ANIMATION_KEYFRAMES = """  @keyframes appear { from { opacity: 0; transform: tra
 """
 
 
-def render_error_svg(*, username: str, theme: str, message: str) -> str:
+def render_error_svg(*, username: str, theme: str, message: str, heading: str = "Profile header is temporarily unavailable") -> str:
     p = PALETTES[theme]
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{CARD_WIDTH}" height="220" viewBox="0 0 {CARD_WIDTH} 220" role="img">
 <rect width="1100" height="220" rx="24" fill="{p['bg']}" stroke="{p['line']}"/>
 {svg_text(54, 66, '@' + username, 15, p['accent'])}
-{svg_text(54, 118, 'Profile header is temporarily unavailable', 24, p['ink'])}
+{svg_text(54, 118, heading, 24, p['ink'])}
 {svg_text(54, 156, message[:80], 13, p['muted'])}
 </svg>'''
