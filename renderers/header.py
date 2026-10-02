@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any
 
 from PIL import Image, UnidentifiedImageError
 
-from renderers.shared import ANIMATION_KEYFRAMES, CARD_WIDTH, MONO, PALETTES, SANS, svg_text
+from renderers.ascii import render_ascii_name
+from renderers.shared import ANIMATION_KEYFRAMES, CARD_WIDTH, MONO, PALETTES, svg_text
 
 if TYPE_CHECKING:
     from services.github import GitHubProfile
@@ -15,48 +16,35 @@ if TYPE_CHECKING:
 WIDTH, HEIGHT = CARD_WIDTH, 560
 ASCII_CHARS = " .:-=+*#%@"
 
-def _split_name(name: str) -> list[str]:
-    words = name.split()
-    if len(words) <= 1:
-        return [name]
-
-    best_index = 1
-    best_delta = float("inf")
-    for index in range(1, len(words)):
-        left = " ".join(words[:index])
-        right = " ".join(words[index:])
-        delta = abs(len(left) - len(right))
-        if delta < best_delta:
-            best_delta = delta
-            best_index = index
-    return [" ".join(words[:best_index]), " ".join(words[best_index:])]
-
-
-def _name_layout(name: str) -> list[tuple[str, float, float]]:
-    """Return two strong, compact name lines without depending on server-side fonts."""
-    lines = _split_name(name)[:2]
-    baselines = (232.0, 326.0)
-    target_widths = (515.0, 390.0)
-    result: list[tuple[str, float, float]] = []
-
-    for index, line in enumerate(lines):
-        # 0.56 is a practical average glyph-width ratio for bold sans text.
-        estimated = target_widths[index] / max(1.0, len(line) * 0.56)
-        font_size = min(78.0, max(48.0, estimated))
-        result.append((line, font_size, baselines[index]))
-    return result
-
-
-def _name_markup(layout: list[tuple[str, float, float]], ink: str) -> str:
-    rows: list[str] = []
-    for line, font_size, baseline in layout:
-        rows.append(
-            f'<text x="54" y="{baseline:.1f}" font-family="{SANS}" '
-            f'font-size="{font_size:.1f}" font-weight="800" '
-            f'fill="url(#name-ascii)" stroke="{ink}" stroke-width=".28" '
-            f'stroke-opacity=".16" paint-order="stroke">{escape(line)}</text>'
-        )
-    return "".join(rows)
+# Six-second cycle: staggered reveal, readable hold, shared fade, then reset.
+HEADER_REVEAL_KEYFRAMES = """  @keyframes intro-loop {
+    0% { opacity: 0; transform: translateY(6px); }
+    10%,88% { opacity: 1; transform: translateY(0); }
+    96%,100% { opacity: 0; transform: translateY(6px); }
+  }
+  @keyframes name-loop {
+    0%,3.67% { opacity: 0; clip-path: inset(0 100% 0 0); }
+    25.33%,88% { opacity: 1; clip-path: inset(0 0 0 0); }
+    96% { opacity: 0; clip-path: inset(0 0 0 0); }
+    100% { opacity: 0; clip-path: inset(0 100% 0 0); }
+  }
+  @keyframes portrait-loop {
+    0%,9.17% { opacity: 0; clip-path: inset(0 0 100% 0); }
+    32.5%,88% { opacity: 1; clip-path: inset(0 0 0 0); }
+    96% { opacity: 0; clip-path: inset(0 0 0 0); }
+    100% { opacity: 0; clip-path: inset(0 0 100% 0); }
+  }
+  @keyframes details-loop {
+    0%,22.5% { opacity: 0; transform: translateY(6px); }
+    33.33%,88% { opacity: 1; transform: translateY(0); }
+    96%,100% { opacity: 0; transform: translateY(6px); }
+  }
+  @keyframes footer-loop {
+    0%,28.33% { opacity: 0; transform: translateY(6px); }
+    40%,88% { opacity: 1; transform: translateY(0); }
+    96%,100% { opacity: 0; transform: translateY(6px); }
+  }
+"""
 
 
 def _mix(a: tuple[int, int, int], b: tuple[int, int, int], weight: float) -> tuple[int, int, int]:
@@ -95,7 +83,7 @@ def render_profile_svg(
 ) -> str:
     p = PALETTES[theme]
     avatar = _avatar_image(avatar_bytes)
-    name_markup = _name_markup(_name_layout(profile.name), p["ink"])
+    name_markup = render_ascii_name(profile.name, p["ink"])
 
     stack = _stack_text(config)
     tagline = str(config.get("tagline") or "Build. Learn. Share.")
@@ -106,22 +94,18 @@ def render_profile_svg(
 <desc id="desc">Animated ASCII GitHub profile header for @{escape(profile.login)}.</desc>
 <defs>
   <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="{p['grid']}" stroke-width=".65"/></pattern>
-  <pattern id="name-ascii" width="38" height="18" patternUnits="userSpaceOnUse">
-    <text x="0" y="7" font-family="{MONO}" font-size="7" font-weight="700" fill="{p['ink']}" letter-spacing="1">#:+#</text>
-    <text x="5" y="15" font-family="{MONO}" font-size="7" font-weight="700" fill="{p['ink']}" letter-spacing="1">:+##</text>
-  </pattern>
   <radialGradient id="glow"><stop stop-color="{p['glow']}" stop-opacity=".9"/><stop offset="1" stop-color="{p['bg']}" stop-opacity="0"/></radialGradient>
   <clipPath id="card"><rect x="1" y="1" width="1098" height="558" rx="26"/></clipPath>
 </defs>
 <style>
-  .intro {{ animation: appear .6s ease-out both; }}
-  .name {{ animation: word-in 1.3s .22s ease-out both; }}
-  .portrait {{ animation: portrait-in 1.4s .55s ease-out both; }}
-  .details {{ animation: appear .65s 1.35s ease-out both; }}
-  .footer {{ animation: appear .7s 1.7s ease-out both; }}
+  .intro {{ animation: intro-loop 6s ease-out infinite; }}
+  .name {{ animation: name-loop 6s ease-out infinite; }}
+  .portrait {{ animation: portrait-loop 6s ease-out infinite; }}
+  .details {{ animation: details-loop 6s ease-out infinite; }}
+  .footer {{ animation: footer-loop 6s ease-out infinite; }}
   .orbit {{ transform-origin: 865px 268px; animation: orbit 32s linear infinite; }}
   .signal {{ animation: pulse 3.8s ease-in-out infinite; }}
-{ANIMATION_KEYFRAMES}  @media (prefers-reduced-motion: reduce) {{ .intro,.name,.portrait,.details,.footer,.orbit,.signal {{ animation: none; }} }}
+{ANIMATION_KEYFRAMES}{HEADER_REVEAL_KEYFRAMES}  @media (prefers-reduced-motion: reduce) {{ .intro,.name,.portrait,.details,.footer,.orbit,.signal {{ animation: none; }} }}
 </style>
 <g clip-path="url(#card)">
   <rect width="1100" height="560" fill="{p['bg']}"/>

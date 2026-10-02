@@ -17,10 +17,13 @@ github-profile-api/
 ├── renderers/
 │   ├── __init__.py
 │   ├── shared.py           # Colors, fonts, SVG text, keyframes, error card
+│   ├── ascii.py            # Dense name sampling from a bundled font
 │   └── header.py           # Header layout and ASCII avatar
 ├── assets/
 │   ├── icons/              # Reserved for technology icons
-│   └── fonts/              # Reserved for bundled fonts
+│   └── fonts/              # NotoSans-Bold.ttf and its OFL license
+├── tests/
+│   └── test_ascii_name.py   # Density, Vietnamese accents, layout and SVG checks
 ├── profile.json
 ├── requirements.txt
 ├── .python-version
@@ -29,7 +32,9 @@ github-profile-api/
 
 Requests flow through `routes` → `services` → `renderers`. `app.py` registers the routers. Add `stack.py` and `contributions.py` to `routes/` and `renderers/` when those cards are implemented; register each new router in `app.py`.
 
-The asset directories are placeholders. The current header does not require bundled icons or fonts.
+The SVG reveal repeats automatically every six seconds: intro, name, portrait, details, footer, then a pause and fade before restarting. It uses SVG CSS animations, so no browser refresh or JavaScript is required. Reduced-motion preferences display a static card.
+
+The header uses bundled Noto Sans Bold to sample letter shapes into a dense ASCII grid. The SVG contains the sampled characters rather than a browser-clipped repeating pattern. Technology icons are reserved for the future stack card. Include `assets/fonts/NotoSans-Bold.ttf` when deploying; its license is in `assets/fonts/OFL.txt`.
 
 ## Available endpoints
 
@@ -61,3 +66,11 @@ Select `.venv/bin/python` as the Python interpreter in your editor.
 ## Vercel
 
 The FastAPI entry point remains `app:app` in `app.py`. When deploying, import this repository into Vercel and store `GITHUB_TOKEN`, if used, as a Vercel environment variable.
+
+## Local checks
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+These checks do not call GitHub.
