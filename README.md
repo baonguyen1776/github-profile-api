@@ -1,14 +1,14 @@
-# GitHub Profile API 🚀
+# GitHub Profile API
 
 > **On-demand Animated SVG Engine** for personal GitHub Profile READMEs.
 > 
 > Automatically transforms your avatar into custom **ASCII Art**, visualizes your codebase with **real-world languages & detected technologies**, and renders a **yearly contribution graph with a continuous, looping snake animation**.
 
-**🌐 Live Production API:** `https://github-profile-api-azure.vercel.app`
+**Live Production API:** `https://github-profile-api-azure.vercel.app`
 
 ---
 
-## 🎯 1. Core Purpose
+## 1. Core Purpose
 
 - **Personalize GitHub Profiles**: Replace generic static badges with dynamic, living vector cards that showcase your engineering identity.
 - **Real-Time Data Synchronization**: Direct integration with the GitHub API calculates exact language byte shares, scans project manifests for active frameworks, and calculates your true daily streaks.
@@ -16,23 +16,23 @@
 
 ---
 
-## 🚀 2. Quick Start (Embed into your Profile README)
+## 2. Quick Start (Embed into your Profile README)
 
 Simply copy and paste the Markdown snippets below into your personal repository's `README.md` (replace `baonguyen1776` with your GitHub username):
 
-### 🎴 Card 1: ASCII Identity Header
+### Card 1: ASCII Identity Header
 Artistic ASCII portrait avatar, personal bio, location, repository counts, and follower statistics:
 ```markdown
 ![Header](https://github-profile-api-azure.vercel.app/api/header?username=baonguyen1776&theme=dark)
 ```
 
-### 📊 Card 2: Tech Stack & Language Share
+### Card 2: Tech Stack & Language Share
 Language distribution based on actual repository byte counts, technology badges, and animated progress bars:
 ```markdown
 ![Tech Stack](https://github-profile-api-azure.vercel.app/api/stack?username=baonguyen1776&theme=dark)
 ```
 
-### 🐍 Card 3: Yearly Contributions & Snake Replay
+### Card 3: Yearly Contributions & Snake Replay
 Full-year contribution calendar, an animated snake navigating commit cells, streak metrics, and a 4-axis activity radar (click the image to open the interactive web preview):
 ```markdown
 [![Contributions](https://github-profile-api-azure.vercel.app/api/contributions?username=baonguyen1776&theme=dark)](https://github-profile-api-azure.vercel.app/preview/contributions?username=baonguyen1776&theme=dark)
@@ -40,7 +40,7 @@ Full-year contribution calendar, an animated snake navigating commit cells, stre
 
 ---
 
-## ✨ 3. Key Features
+## 3. Key Features
 
 | Feature | Description |
 |---|---|
@@ -54,7 +54,7 @@ Full-year contribution calendar, an animated snake navigating commit cells, stre
 
 ---
 
-## 🛠️ 4. Technical Implementation & Architecture
+## 4. Technical Implementation & Architecture
 
 ```text
 HTTP Request  ──►  Routes (FastAPI)  ──►  Services (Data & Logic)  ──►  Renderers (SVG Engine)  ──►  Response SVG
@@ -80,7 +80,7 @@ HTTP Request  ──►  Routes (FastAPI)  ──►  Services (Data & Logic)  �
 
 ---
 
-## 📡 5. API Endpoints & Parameters
+## 5. API Endpoints & Parameters
 
 | Endpoint | Method | Key Parameters | Purpose |
 |---|---|---|---|
@@ -95,7 +95,7 @@ HTTP Request  ──►  Routes (FastAPI)  ──►  Services (Data & Logic)  �
 
 ---
 
-## ⚙️ 6. Profile Configuration (`profile.json`)
+## 6. Profile Configuration (`profile.json`)
 
 Customize the personal data rendered by cards in the root [`profile.json`](profile.json) file:
 
@@ -117,7 +117,7 @@ Customize the personal data rendered by cards in the root [`profile.json`](profi
 
 ---
 
-## 💻 7. Local Development & Deployment
+## 7. Local Development & Deployment
 
 ### Local Setup
 ```bash
