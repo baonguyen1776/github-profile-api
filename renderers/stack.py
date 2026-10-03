@@ -7,7 +7,6 @@ import xml.etree.ElementTree as ET
 from functools import lru_cache
 from html import escape
 from pathlib import Path
-from typing import Any
 
 from renderers.shared import CARD_WIDTH, MONO, SANS, svg_text
 from services.languages import LanguageReport, LanguageRow
@@ -152,18 +151,19 @@ def _counter(row: LanguageRow, x: float, y: float, color: str) -> str:
     return "".join(parts)
 
 
-def render_stack_svg(*, report: LanguageReport, rows: list[LanguageRow], theme: str, config: dict[str, Any], technologies: TechnologyReport | None = None) -> str:
+def render_stack_svg(
+    *, report: LanguageReport, rows: list[LanguageRow], theme: str,
+    technologies: TechnologyReport | None = None,
+    requested_technologies: list[str] | None = None,
+    editors: list[str] | None = None,
+    focus_areas: list[str] | None = None,
+) -> str:
     p = PALETTES[theme]
     technologies = technologies or TechnologyReport({})
     selected = [row.name for row in rows if row.name != 'Other']
-    requested = config.get('stack_card_technologies', [])
-    editors = config.get('stack_card_editors', [])
-    focus = config.get('focus_areas', [])
-    for key, value in (('stack_card_technologies', requested), ('stack_card_editors', editors), ('focus_areas', focus)):
-        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-            raise ValueError(f'{key} must be a list of strings')
-    groups = grouped_names(selected, select_technologies(technologies, requested))
-    editor_names = list(dict.fromkeys(name for name in editors if name in EDITORS))
+    groups = grouped_names(selected, select_technologies(technologies, requested_technologies or []))
+    available_editors = {name.casefold(): name for name in EDITORS}
+    editor_names = list(dict.fromkeys(available_editors[name.strip().casefold()] for name in (editors or []) if name.strip().casefold() in available_editors))
     if editor_names:
         groups.append(('IDEs / Text Editors — Your Selection', editor_names))
     badge_parts = []
@@ -184,7 +184,7 @@ def render_stack_svg(*, report: LanguageReport, rows: list[LanguageRow], theme: 
         text = 'No public language data yet' if not rows else 'Your selected languages are not present in these repositories'
         badge_parts.append(svg_text(48, cursor + 24, text, 16, p['muted']))
         cursor += 74
-    focus_labels = [item.strip()[:24] for item in focus if item.strip()][:4]
+    focus_labels = [item.strip()[:24] for item in (focus_areas or []) if item.strip()][:4]
     x = 48
     for label in focus_labels:
         width = max(68, len(label) * 7 + 28)

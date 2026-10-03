@@ -69,11 +69,6 @@ def _avatar_image(avatar_bytes: bytes) -> Image.Image:
         raise ValueError("Could not decode GitHub avatar") from exc
 
 
-def _stack_text(config: dict[str, Any]) -> str:
-    values = [str(item).strip() for item in config.get("stack", []) if str(item).strip()]
-    return " / ".join(values[:5]) or "Build / Learn / Share"
-
-
 def render_profile_svg(
     *,
     profile: "GitHubProfile",
@@ -85,7 +80,6 @@ def render_profile_svg(
     avatar = _avatar_image(avatar_bytes)
     name_markup = render_ascii_name(profile.name, p["ink"])
 
-    stack = _stack_text(config)
     tagline = str(config.get("tagline") or "Build. Learn. Share.")
     visual_language = str(config.get("visual_language") or "Characters become identity.")
 
@@ -115,7 +109,6 @@ def render_profile_svg(
 </g>
 <rect x="1" y="1" width="1098" height="558" rx="26" fill="none" stroke="{p['line']}" stroke-width="1.5"/>
 <g class="intro">
-  {svg_text(54, 51, 'IDENTITY / ASCII STUDY', 10, p['muted'], 'letter-spacing="2.5"')}
   {svg_text(1046, 51, '@' + profile.login, 11, p['muted'], 'text-anchor="end"')}
   <circle class="signal" cx="57" cy="112" r="3" fill="{p['accent']}"/>
   {svg_text(71, 116, "HELLO, WORLD. I'M", 11, p['accent'], 'letter-spacing="3.4"')}
@@ -146,9 +139,7 @@ def render_profile_svg(
 
     parts.append(f'''</g>
 <g class="details">
-  {svg_text(54, 382, stack, 17, p['ink'])}
-  {svg_text(54, 410, tagline, 13, p['muted'])}
-  {svg_text(865, 430, 'GITHUB AVATAR / ASCII', 9, p['muted'], 'text-anchor="middle" letter-spacing="2"')}
+  {svg_text(54, 382, tagline, 13, p['muted'])}
 </g>
 <g class="footer">
   <path d="M54 461H1046" stroke="{p['line']}"/>

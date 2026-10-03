@@ -32,6 +32,14 @@ Language distribution based on actual repository byte counts, technology badges,
 ![Tech Stack](https://github-profile-api-azure.vercel.app/api/stack?username=baonguyen1776&theme=dark)
 ```
 
+Choose the badges directly in the image URL in your own README:
+
+```markdown
+![Tech Stack](https://github-profile-api-azure.vercel.app/api/stack?username=baonguyen1776&theme=dark&languages=TypeScript,C%2B%2B,Python&technologies=React,FastAPI&editors=Visual%20Studio%20Code&focus=AI%2FML,Automation)
+```
+
+Each option is independent. Omit `languages` or `technologies` (or leave it blank) to automatically show the GitHub-backed choices for that category. Omit `editors` or `focus` to hide those sections. The API receives these query parameters from the image request; it does not parse the README file. No server configuration change or redeployment is needed when a profile author changes their choices.
+
 ### Card 3: Yearly Contributions & Snake Replay
 Full-year contribution calendar, an animated snake navigating commit cells, streak metrics, and a 4-axis activity radar (click the image to open the interactive web preview):
 ```markdown
@@ -45,7 +53,7 @@ Full-year contribution calendar, an animated snake navigating commit cells, stre
 | Feature | Description |
 |---|---|
 | **Pixel-to-ASCII Portrait** | Samples your actual GitHub avatar and maps pixel luminance values to an ASCII density ramp, blended harmoniously with the selected theme. |
-| **Automatic Tech Detection** | Inspects manifests (`package.json`, `requirements.txt`, `pyproject.toml`) across public repositories to automatically surface framework badges (React, FastAPI, Docker, etc.). |
+| **Automatic Tech Detection** | Inspects manifests (`package.json`, `requirements.txt`, `pyproject.toml`) across public repositories to automatically surface supported framework badges such as React and FastAPI. |
 | **Accurate Language Metrics** | Computes byte counts directly across non-fork repositories, rendering smooth growing progress bars from `0.0%` to exact proportions. |
 | **Full 365-Day Calendar** | Supports historical annual graphs from 2008 to the present day, intelligently calculating active `Current streak` vs historical `Year-end streak`. |
 | **4-Axis Activity Radar** | Visualizes relative distribution across four contribution types: *Commits*, *Pull Requests*, *Issues*, and *Code Reviews*. |
@@ -85,7 +93,7 @@ HTTP Request  ──►  Routes (FastAPI)  ──►  Services (Data & Logic)  �
 | Endpoint | Method | Key Parameters | Purpose |
 |---|---|---|---|
 | `/api/header` | `GET` | `username` (required), `theme` (`light` \| `dark`) | ASCII avatar header card with profile metrics |
-| `/api/stack` | `GET` | `username` (required), `theme` (`light` \| `dark`), `languages` (optional) | Tech stack card & language percentage bars |
+| `/api/stack` | `GET` | `username` (required), `theme` (`light` \| `dark`), `languages`, `technologies`, `editors`, `focus` (optional) | Tech stack card configured from the README image URL |
 | `/api/contributions` | `GET` | `username` (required), `year` (e.g. `2026`), `theme` (`auto` \| `light` \| `dark`), `animate` (`true` \| `false`), `repo` (optional) | Annual contribution calendar card with snake & radar |
 | `/preview/contributions` | `GET` | `username`, `year`, `theme`, `repo` | Interactive web dashboard for browsing years & projects |
 | `/api/contribution-data` | `GET` | `username`, `year`, `repo` | Raw contribution JSON payload |
@@ -97,22 +105,39 @@ HTTP Request  ──►  Routes (FastAPI)  ──►  Services (Data & Logic)  �
 
 ## 6. Profile Configuration (`profile.json`)
 
-Customize the personal data rendered by cards in the root [`profile.json`](profile.json) file:
+Tech Stack choices belong in the README image URL, not `profile.json`:
+
+| Parameter | Example value | When omitted or blank |
+|---|---|---|
+| `languages` | `TypeScript,C%2B%2B,Python` | All detected GitHub languages |
+| `technologies` | `React,FastAPI` | All supported technologies detected in manifests |
+| `editors` | `Visual%20Studio%20Code,PyCharm` | No editor badges |
+| `focus` | `AI%2FML,Automation` | No personal focus labels |
+
+Names are comma-separated. Language, technology, and editor matching is case-insensitive, trims whitespace, and removes duplicates. Language and technology selections filter the detected data: an unknown or undetected name does not create a badge. `/api/languages?username=...` and `/api/technologies?username=...` list the available choices. Supported editors are Visual Studio Code, IntelliJ IDEA, and PyCharm; these are self-reported choices, not inferred from GitHub.
+
+Percentages still use all language bytes as the denominator. Languages outside the selection are grouped under `Other`, so choosing one language does not falsely turn its share into 100%. Personal focus labels are escaped and limited to four labels of 24 characters each.
+
+Encode literal `+` as `%2B` (`C++` becomes `C%2B%2B`), `#` as `%23`, and spaces as `%20`. In HTML attributes use `&amp;` between URL parameters. Keep the same choices in both theme URLs:
+
+```html
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github-profile-api-azure.vercel.app/api/stack?username=baonguyen1776&amp;theme=dark&amp;languages=TypeScript,C%2B%2B,Python&amp;technologies=React,FastAPI">
+  <img alt="My tech stack" src="https://github-profile-api-azure.vercel.app/api/stack?username=baonguyen1776&amp;theme=light&amp;languages=TypeScript,C%2B%2B,Python&amp;technologies=React,FastAPI" width="850">
+</picture>
+```
+
+The root [`profile.json`](profile.json) now only configures header text and the contribution animation duration:
 
 ```json
 {
-  "stack": ["TypeScript", "C++", "Python"],
-  "stack_card_languages": ["TypeScript", "C++", "Python"],
-  "stack_card_technologies": ["React", "FastAPI", "Tauri", "Docker"],
-  "stack_card_editors": ["Visual Studio Code", "PyCharm"],
   "tagline": "Build. Learn. Share.",
   "visual_language": "Characters become identity.",
-  "focus_areas": ["Systems", "Fullstack", "AI"],
   "contribution_animation_seconds": 18
 }
 ```
 
-- Leave `stack_card_languages` or `stack_card_technologies` empty (`[]`) to let the engine automatically display all technologies detected from your public repositories.
+- Legacy `stack_card_languages`, `stack_card_technologies`, `stack_card_editors`, and `focus_areas` server settings are no longer used by `/api/stack`. Move any existing choices into README URL parameters. The header no longer displays the old `stack` language line or the decorative ASCII labels.
 - `contribution_animation_seconds`: Configure the loop duration of the snake animation (between `12` and `120` seconds).
 
 ---

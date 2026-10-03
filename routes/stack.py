@@ -5,7 +5,6 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
-from config import load_profile_config
 from renderers.shared import render_error_svg
 from renderers.stack import render_stack_svg
 from routes.header import USERNAME_RE
@@ -24,6 +23,11 @@ CACHE_HEADERS = {
 def _validate_username(username: str) -> None:
     if not USERNAME_RE.fullmatch(username):
         raise HTTPException(status_code=422, detail="Invalid GitHub username")
+
+
+def _choices(value: str | None) -> list[str]:
+    """An omitted or blank README query option uses that field's defaults."""
+    return list(dict.fromkeys(name.strip() for name in (value or "").split(",") if name.strip()))
 
 
 @router.get("/languages")
@@ -66,17 +70,20 @@ async def stack(
     username: str = Query(..., min_length=1, max_length=39),
     theme: Literal["light", "dark"] = "dark",
     languages: str | None = Query(None, max_length=300, description="Optional comma-separated GitHub language choices"),
+    technologies: str | None = Query(None, max_length=500, description="Comma-separated detected technologies; omitted or blank means automatic"),
+    editors: str | None = Query(None, max_length=200, description="Comma-separated editor names; omitted or blank hides editors"),
+    focus: str | None = Query(None, max_length=200, description="Comma-separated personal focus labels; omitted or blank hides labels"),
 ) -> Response:
     _validate_username(username)
     try:
-        config = load_profile_config()
-        requested = languages.split(",") if languages is not None else config.get("stack_card_languages", [])
-        if not isinstance(requested, list) or not all(isinstance(name, str) for name in requested):
-            raise ValueError("stack_card_languages must be a list of language names")
         report = await fetch_language_report(username)
-        rows = select_language_rows(report, requested)
-        technologies = await fetch_technology_report(report)
-        svg = render_stack_svg(report=report, rows=rows, theme=theme, config=config, technologies=technologies)
+        rows = select_language_rows(report, _choices(languages))
+        technology_report = await fetch_technology_report(report)
+        svg = render_stack_svg(
+            report=report, rows=rows, theme=theme, technologies=technology_report,
+            requested_technologies=_choices(technologies), editors=_choices(editors),
+            focus_areas=_choices(focus),
+        )
         status_code = 200
         headers = CACHE_HEADERS
     except GitHubClientError as exc:

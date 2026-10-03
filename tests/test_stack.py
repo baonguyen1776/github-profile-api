@@ -12,6 +12,7 @@ from app import app
 from renderers.stack import render_stack_svg
 from services.github import GitHubClientError
 from services.languages import LanguageReport, all_language_rows, fetch_language_report, select_language_rows
+from services.technologies import TechnologyReport
 from services import languages as service
 
 
@@ -119,7 +120,7 @@ class StackSvgTests(unittest.TestCase):
         ns = {'svg': 'http://www.w3.org/2000/svg'}
         for theme in ('light', 'dark'):
             with self.subTest(theme=theme):
-                svg = render_stack_svg(report=self.report, rows=rows, theme=theme, config={'focus_areas': ['AI / ML', 'Automation']})
+                svg = render_stack_svg(report=self.report, rows=rows, theme=theme, focus_areas=['AI / ML', 'Automation'])
                 tree = ET.fromstring(svg)
                 self.assertEqual([node.attrib['data-language'] for node in tree.findall(".//svg:g[@data-language]", ns)], ['TypeScript', 'Python'])
                 icons = tree.findall('.//svg:image', ns)
@@ -136,15 +137,15 @@ class StackSvgTests(unittest.TestCase):
                 self.assertIn('prefers-reduced-motion', svg)
 
     def test_empty_data_and_unknown_language_fallback(self) -> None:
-        empty = render_stack_svg(report=LanguageReport('test', 0, {}), rows=[], theme='dark', config={})
+        empty = render_stack_svg(report=LanguageReport('test', 0, {}), rows=[], theme='dark')
         self.assertIn('No public language data yet', empty)
         report = LanguageReport('test', 1, {'UnknownLanguage': 100})
-        svg = render_stack_svg(report=report, rows=select_language_rows(report, []), theme='light', config={})
+        svg = render_stack_svg(report=report, rows=select_language_rows(report, []), theme='light')
         self.assertIn('UnknownLanguage', svg)
         ET.fromstring(svg)
 
     def test_labels_are_escaped(self) -> None:
-        svg = render_stack_svg(report=self.report, rows=select_language_rows(self.report, []), theme='dark', config={'focus_areas': ['AI & <ML>']})
+        svg = render_stack_svg(report=self.report, rows=select_language_rows(self.report, []), theme='dark', focus_areas=['AI & <ML>'])
         self.assertIn('AI &amp; &lt;ML&gt;', svg)
         ET.fromstring(svg)
 
@@ -168,12 +169,67 @@ class StackRouteTests(unittest.TestCase):
         self.assertIn('Other: 66.0%', response.text)
 
     def test_default_icons_match_all_github_languages(self) -> None:
-        with patch('routes.stack.fetch_language_report', AsyncMock(return_value=self.report)), patch('routes.stack.load_profile_config', return_value={'stack': ['Python']}):
+        with patch('routes.stack.fetch_language_report', AsyncMock(return_value=self.report)), patch('config.load_profile_config', side_effect=AssertionError('Stack must not read server profile settings')):
             response = self.client.get('/api/stack?username=test')
         tree = ET.fromstring(response.content)
         ns = {'svg': 'http://www.w3.org/2000/svg'}
         names = {node.attrib['data-language'] for node in tree.findall('.//svg:g[@data-language]', ns)}
         self.assertEqual(names, set(self.report.language_bytes))
+
+    def test_readme_choices_are_request_scoped_and_blank_options_use_defaults(self) -> None:
+        report = LanguageReport('test', 2, {'TypeScript': 40, 'Python': 30, 'C++': 30})
+        technology_report = TechnologyReport({'React': [], 'FastAPI': []})
+        ns = {'s': 'http://www.w3.org/2000/svg'}
+
+        def names(response, attribute):
+            self.assertEqual(response.status_code, 200)
+            tree = ET.fromstring(response.content)
+            return {node.attrib[attribute] for node in tree.findall(f'.//s:g[@{attribute}]', ns)}
+
+        with patch('routes.stack.fetch_language_report', AsyncMock(return_value=report)), patch('routes.stack.fetch_technology_report', AsyncMock(return_value=technology_report)), patch('config.load_profile_config', side_effect=AssertionError('No global preferences')):
+            for theme in ('light', 'dark'):
+                selected = self.client.get('/api/stack', params={
+                    'username': 'test', 'theme': theme, 'languages': ' c++,PYTHON,python,Unknown ',
+                    'technologies': ' react,REACT,Unknown ', 'editors': ' pycharm,PYCHARM,Unknown ',
+                    'focus': 'AI & <ML>,Automation',
+                })
+                self.assertEqual(names(selected, 'data-language'), {'C++', 'Python'})
+                self.assertEqual(names(selected, 'data-technology'), {'React'})
+                self.assertEqual(names(selected, 'data-editor'), {'PyCharm'})
+                self.assertIn('Other: 40.0%', selected.text)
+                self.assertIn('AI &amp; &lt;ML&gt;', selected.text)
+                self.assertNotIn('<ML>', selected.text)
+
+            for options in ({}, {'languages': ' , ', 'technologies': ' , ', 'editors': '', 'focus': ''}):
+                automatic = self.client.get('/api/stack', params={'username': 'test', **options})
+                self.assertEqual(names(automatic, 'data-language'), set(report.language_bytes))
+                self.assertEqual(names(automatic, 'data-technology'), {'React', 'FastAPI'})
+                self.assertFalse(names(automatic, 'data-editor'))
+                self.assertNotIn('Automation', automatic.text)
+                self.assertNotIn('AI &amp;', automatic.text)
+
+            unknown = self.client.get('/api/stack', params={'username': 'test', 'languages': 'Unknown', 'technologies': 'Unknown'})
+            self.assertFalse(names(unknown, 'data-language'))
+            self.assertFalse(names(unknown, 'data-technology'))
+            self.assertIn('Other: 100.0%', unknown.text)
+
+    def test_encoded_cpp_and_each_optional_field_work_independently(self) -> None:
+        report = LanguageReport('test', 1, {'C++': 25, 'Python': 75})
+        with patch('routes.stack.fetch_language_report', AsyncMock(return_value=report)), patch('routes.stack.fetch_technology_report', AsyncMock(return_value=TechnologyReport({'React': []}))):
+            response = self.client.get('/api/stack?username=test&languages=C%2B%2B&editors=Visual%20Studio%20Code')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('data-language="C++"', response.text)
+        self.assertNotIn('data-language="Python"', response.text)
+        self.assertIn('data-technology="React"', response.text)
+        self.assertIn('data-editor="Visual Studio Code"', response.text)
+        self.assertIn('Other: 75.0%', response.text)
+
+    def test_oversized_readme_choices_are_rejected_before_fetching(self) -> None:
+        with patch('routes.stack.fetch_language_report', AsyncMock()) as fetch:
+            for parameter, length in (('languages', 301), ('technologies', 501), ('editors', 201), ('focus', 201)):
+                response = self.client.get('/api/stack', params={'username': 'test', parameter: 'x' * length})
+                self.assertEqual(response.status_code, 422)
+            fetch.assert_not_called()
 
     def test_invalid_inputs_do_not_fetch_github(self) -> None:
         with patch('routes.stack.fetch_language_report', AsyncMock()) as fetch:

@@ -91,7 +91,7 @@ class GroupedBadgeTests(unittest.TestCase):
         self.ns = {'s': 'http://www.w3.org/2000/svg'}
 
     def test_categories_and_selection_filter_against_verified_choices(self):
-        svg = render_stack_svg(report=self.report, rows=self.rows, theme='light', config={'stack_card_technologies': ['react', 'TensorFlow'], 'stack_card_editors': ['PyCharm']}, technologies=self.tech)
+        svg = render_stack_svg(report=self.report, rows=self.rows, theme='light', requested_technologies=['react', 'TensorFlow'], editors=['PyCharm'], technologies=self.tech)
         tree = ET.fromstring(svg)
         names = [node.attrib['data-technology'] for node in tree.findall('.//s:g[@data-technology]', self.ns)]
         self.assertEqual(names, ['React'])
@@ -107,7 +107,7 @@ class GroupedBadgeTests(unittest.TestCase):
     def test_wrapped_badges_stay_inside_card_and_above_chart(self):
         data = {f'Long language number {i}': 10 for i in range(17)}
         report = LanguageReport('test', 1, data)
-        tree = ET.fromstring(render_stack_svg(report=report, rows=select_language_rows(report, []), theme='dark', config={}))
+        tree = ET.fromstring(render_stack_svg(report=report, rows=select_language_rows(report, []), theme='dark'))
         height = float(tree.attrib['height'])
         graph_y = float(next(node for node in tree.findall('s:rect', self.ns) if node.attrib.get('x') == '32').attrib['y'])
         for group in tree.findall('.//s:g[@data-language]', self.ns):
