@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from routes.header import router as header_router
 from routes.stack import router as stack_router
+from routes.contributions import preview_router, router as contributions_router
 
 
 app = FastAPI(
@@ -13,6 +14,8 @@ app = FastAPI(
 )
 app.include_router(header_router)
 app.include_router(stack_router)
+app.include_router(contributions_router)
+app.include_router(preview_router)
 
 
 @app.get("/health")

@@ -28,7 +28,10 @@ PALETTES = {
 }
 
 
-def svg_text(x: float, y: float, content: str, size: float, color: str, extra: str = "") -> str:
+from typing import Any
+
+
+def svg_text(x: float, y: float, content: str, size: float, color: Any, extra: str = "") -> str:
     return (
         f'<text x="{x}" y="{y}" font-family="{MONO}" font-size="{size}" '
         f'fill="{color}" {extra}>{escape(content)}</text>'

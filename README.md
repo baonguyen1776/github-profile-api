@@ -1,6 +1,6 @@
 # github-profile-api
 
-Animated SVG cards for a GitHub profile. Header and Tech Stack cards are implemented. Contributions and Featured Projects can be added next.
+Animated SVG cards for a GitHub profile. Header, Tech Stack and yearly Contributions cards are implemented. Featured Projects can be added next.
 
 ## Structure
 
@@ -11,25 +11,32 @@ github-profile-api/
 ├── routes/
 │   ├── __init__.py
 │   ├── header.py           # /api/header
-│   └── stack.py            # /api/stack and /api/languages
+│   ├── stack.py            # /api/stack, /api/languages and /api/technologies
+│   └── contributions.py    # Yearly SVG/JSON and /preview/contributions
 ├── services/
 │   ├── __init__.py
 │   ├── github.py           # Fetch GitHub profile and avatar
 │   ├── languages.py        # Paginated repository scan, byte totals and selection
-│   └── technologies.py     # Manifest evidence, grouping and technology selection
+│   ├── technologies.py     # Manifest evidence, grouping and technology selection
+│   ├── contribution_overview.py # Contributed repos and activity, GraphQL/public fallback
+│   └── contributions.py    # Daily calendar counts, yearly cache and streaks
 ├── renderers/
 │   ├── __init__.py
 │   ├── shared.py           # Colors, fonts, SVG text, keyframes, error card
 │   ├── ascii.py            # Dense name sampling from a bundled font
 │   ├── header.py           # Header layout and ASCII avatar
-│   └── stack.py            # Grouped badges, usage bars and animated counters
+│   ├── stack.py            # Grouped badges, usage bars and animated counters
+│   ├── contribution_profile.py # Compact README calendar, projects and activity axes
+│   └── contributions.py    # Shared snake animation and legacy rolling layout
 ├── assets/
 │   ├── icons/              # Bundled Devicon SVGs and license
 │   └── fonts/              # NotoSans-Bold.ttf and its OFL license
 ├── tests/
 │   ├── test_ascii_name.py   # ASCII density, accents and layout
 │   ├── test_stack.py        # Language data, selection, cache, SVG and API checks
-│   └── test_technologies.py # Dependencies, evidence, groups, wrapping and API
+│   ├── test_technologies.py # Dependencies, evidence, groups, wrapping and API
+│   ├── test_contributions.py # Calendar integrity, streaks, snake route and API
+│   └── test_contribution_years.py # Years, projects, pagination and preview
 ├── profile.json
 ├── requirements.txt
 ├── .python-version
@@ -51,8 +58,13 @@ The header uses bundled Noto Sans Bold to sample letter shapes into a dense ASCI
 - `GET /api/stack?username=baonguyen1776&theme=light`
 - `GET /api/languages?username=baonguyen1776`
 - `GET /api/technologies?username=baonguyen1776`
+- `GET /api/contributions?username=baonguyen1776&theme=dark`
+- `GET /api/contributions?username=baonguyen1776&theme=light`
+- `GET /api/contributions?username=baonguyen1776&year=2025&theme=dark`
+- `GET /api/contribution-data?username=baonguyen1776&year=2026`
+- `GET /preview/contributions?username=baonguyen1776&year=2026&theme=dark`
 
-The header pulls the GitHub display name, username, avatar, location, public repository count, and follower count automatically. Edit `profile.json` for the stack, tagline, and visual-language text. Contributions and Featured Projects endpoints are not available yet.
+The header pulls the GitHub display name, username, avatar, location, public repository count, and follower count automatically. Edit `profile.json` for the stack, tagline, and visual-language text. Featured Projects endpoints are not available yet.
 
 ## Tech Stack data and configuration
 
@@ -94,6 +106,39 @@ The dependency scan excludes vendor, dependency, build, environment, and referen
 The SVG grows each bar and counts its label from 0.0% to the real final value, holds the result, fades, and repeats every six seconds. Bars use CSS scale keyframes; percentage labels use timed SVG text frames because scripts do not run when SVG is embedded as an image. Reduced-motion settings show the completed static card. The SVG's accessible description contains the final percentages.
 
 GitHub language reports are cached in-process for one hour (up to 64 usernames); the SVG endpoint also sends one-hour Vercel CDN cache headers. A failed repository scan returns an error instead of a partial chart. `GITHUB_TOKEN` helps with GitHub request limits because a fresh scan needs a languages request for each included repository. Language percentages describe code volume, not proficiency or contribution counts.
+
+
+## Yearly contributions
+
+Open `http://127.0.0.1:8000/preview/contributions?username=baonguyen1776` to see the animated card, switch years/themes, and open all contributed repositories. The preview is an HTML page with a form and year links. The SVG itself has no scripts; images embedded in a GitHub README do not expose interactive controls or clickable repository links. Use the preview for those controls.
+
+`/api/contributions?username=baonguyen1776&year=2026&theme=dark` returns the animated SVG. Omit `year` to use the server's current UTC year, use `theme=light` for a white card, or add `animate=false` for a static card. Years are integers from 2008 through the current year; future years return 422. `/api/contribution-data` accepts the same username/year and returns exact daily counts, metrics, available history years and the project/activity overview as JSON.
+
+Each card spans January through December. A completed year contains all 365 or 366 dates; the current year contains actual data only through today. Future squares are visually muted placeholders, excluded from JSON dates, totals and streaks. Missing GitHub counts or incomplete calendars return an error instead of estimated values. `fetch_contributions(year=None)` retains the legacy rolling 365-day window for internal callers; HTTP endpoints default to a calendar year.
+
+Metrics are total contributions, current streak (or **Year-end streak** for past years), longest streak within the selected year, and active days. An unfinished, empty today keeps yesterday's streak open; a completed historical December 31 has no such grace. Runs are bounded by the selected year. GitHub calendar totals include eligible contributions beyond commits; they need not equal the four activity categories below.
+
+With `GITHUB_TOKEN`, the service uses the documented [GitHub contribution collection](https://docs.github.com/en/graphql/reference/users#contributionscollection) for the calendar, history years, contributed repositories and counts of commits, opened PRs/issues and reviews. It sums each commit-day node's `commitCount`; an active day is not one commit. If more than 100 commit-day nodes exist for a repository, it fetches quarters of at most 92 days to recover every count. Each category requests up to 100 repositories and reports `partial` if the list may be capped. Token visibility can affect activity totals; private repository names are filtered out of the response and SVG.
+
+Without a token, the calendar comes from GitHub's public calendar HTML, joining dated cells to exact count tooltips. Optional project data comes from the selected year's public monthly activity timeline, with three concurrent requests at most. This is a web-page fallback and depends on GitHub's HTML format. It aggregates visible commit/PR/issue rollups and actual repository links, rather than substituting owned or pinned repos. Review totals and per-project review counts are `null` and shown as unavailable; missing/truncated repository details are disclosed. An unavailable project overview leaves the validated calendar usable. History links come from GitHub's actual year list. Set a valid token in Vercel for the documented API path.
+
+The compact contribution SVG follows the GitHub contribution layout: a full-year calendar above repository controls and a four-axis activity chart. Selecting a repository keeps the full calendar geometry and highlights only that repository's commit days; PRs, issues and reviews remain statistics in the activity chart. Repository controls use short names while preserving the full `owner/name` value internally. Unknown activity categories use a dashed axis with no data point. Percentages use only known event counts. `overview.status`, `message` and `source` disclose completeness and source in JSON and preview.
+
+The seven-segment snake follows one closed route through adjacent squares and returns around the board's edge with a continuous loop. Calendar cells stay visible at all times, so there is no per-cell restore delay. All seven segments share one animation path with phase offsets, which keeps replay smooth and makes the SVG substantially lighter to parse. Backgrounds are neutral charcoal/gray or white/light gray, with green reserved for contribution intensity. Reduced-motion preferences hide the snake and display the complete static calendar.
+
+Set `"contribution_animation_seconds": 18` in `profile.json` for replay speed; supported integers are 12–120. Reports are cached in-process for one hour, with up to 64 username/date/source/year keys. SVG responses also send one-hour Vercel CDN headers; error cards use `no-store`. The header and stack retain their existing behavior.
+
+After deployment, embed the SVG directly in the profile README. The external HTML preview is optional. A complete light/dark example with expandable historical years is in [examples/profile-contributions.md](examples/profile-contributions.md). Replace `YOUR-VERCEL-DOMAIN` with your deployed HTTPS hostname; localhost URLs cannot be used by GitHub visitors.
+
+The native GitHub contribution graph, its year tabs and organization search are GitHub-owned UI. This API generates a README image; it cannot inject controls into that native graph. To expand historical years inside the README, use GitHub-supported [`<details>` sections](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-collapsed-sections). SVG images themselves cannot run form controls or scripts. The example also provides clickable year image buttons from `/api/contribution-year-button?year=2026`; these open the selected year in the preview. They do not replace the embedded image in place. In the preview, real form buttons select the year beside the calendar, and repository buttons open GitHub. Project buttons drawn inside the main SVG are clickable only when the SVG is opened directly; embedded README images need surrounding Markdown links.
+
+For a simple image linked to the optional preview:
+
+```markdown
+[![Contributions](https://YOUR-VERCEL-DOMAIN/api/contributions?username=baonguyen1776&theme=dark)](https://YOUR-VERCEL-DOMAIN/preview/contributions?username=baonguyen1776&theme=dark)
+```
+
+Add `&year=2025` to both URLs for a fixed historical year. No deploy or push is needed to review the local preview.
 
 ## Local development
 

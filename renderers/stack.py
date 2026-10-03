@@ -74,7 +74,7 @@ def _icon_data(name: str, foreground: str) -> str | None:
             if node.get('stroke') and node.get('stroke') != 'none':
                 node.set('stroke', foreground)
             if node.get('style'):
-                node.set('style', re.sub(r'(fill|stroke):\s*(?!none)[^;]+', lambda match: match[1] + ':' + foreground, node.get('style')))
+                node.set('style', re.sub(r'(fill|stroke):\s*(?!none)[^;]+', lambda match: match[1] + ':' + foreground, node.get('style') or ''))
     return "data:image/svg+xml;base64," + base64.b64encode(ET.tostring(tree)).decode("ascii")
 
 

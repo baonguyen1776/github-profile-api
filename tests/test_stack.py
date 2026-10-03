@@ -126,7 +126,7 @@ class StackSvgTests(unittest.TestCase):
                 self.assertEqual(len(icons), 2)
                 self.assertTrue(all(icon.attrib['href'].startswith('data:image/svg+xml;base64,') for icon in icons))
                 for group, row in zip(tree.findall('.//svg:g[@data-usage]', ns), rows):
-                    counters = [float(node.text.rstrip('%')) for node in group.findall('svg:text', ns) if 'count-step' in node.attrib.get('class', '')]
+                    counters = [float((node.text or '').rstrip('%')) for node in group.findall('svg:text', ns) if 'count-step' in node.attrib.get('class', '')]
                     self.assertGreater(len(counters), 2)
                     self.assertEqual(counters[0], 0.0)
                     self.assertEqual(counters[-1], row.percentage)

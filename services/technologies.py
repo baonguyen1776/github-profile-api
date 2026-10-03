@@ -175,7 +175,7 @@ def select_technologies(report: TechnologyReport, requested: list[str]) -> list[
 
 
 def grouped_names(languages: list[str], technologies: list[str]) -> list[tuple[str, list[str]]]:
-    groups = {title: [] for title in GROUP_ORDER}
+    groups: dict[str, list[str]] = {title: [] for title in GROUP_ORDER}
     for name in dict.fromkeys([*languages, *technologies]):
         # Mobile takes precedence over web, Python APIs take web precedence over data.
         title = next((group for group in ('Mobile Development', 'Web Development', 'Python / Data / Computer Vision', 'Systems / Build Tools') if name in GROUP_MEMBERS[group]), 'Other Languages')
