@@ -48,7 +48,6 @@ PALETTES = {
     "dark": dict(bg="#081c20", panel="#092b2e", border="#146a68", ink="#d5faf2", muted="#79b5b0", accent="#25d0b4", track="#234648", tile="#103b40"),
     "light": dict(bg="#ffffff", panel="#eff8f7", border="#d7e3e8", ink="#24292f", muted="#617a85", accent="#087a67", track="#d0e2e4", tile="#eef4f7"),
 }
-COUNTER_STEPS = 30
 
 
 def language_color(name: str) -> str:
@@ -107,48 +106,14 @@ def _badge(name: str, x: float, y: float, sources: list[dict[str, str]], is_lang
 
 
 def _animation_css() -> str:
-    fill_frames = ["0%,12% {transform:scaleX(0)}"]
-    for step in range(1, COUNTER_STEPS + 1):
-        progress = 1 - (1 - step / COUNTER_STEPS) ** 3
-        fill_frames.append(f"{12 + step:.2f}% {{transform:scaleX({progress:.6f})}}")
-    fill_frames.append("88%,100% {transform:scaleX(1)}")
-    keyframes = ["@keyframes stack-fill {" + "".join(fill_frames) + "}"]
-    for step in range(COUNTER_STEPS + 1):
-        start = 0 if step == 0 else 12 + step
-        end = 100 if step == COUNTER_STEPS else 13 + step
-        frames = []
-        if start:
-            frames.append(f"0%,{start - .01:.2f}% {{opacity:0}}")
-        frames.append(f"{start:.2f}%,{end - .01:.2f}% {{opacity:1}}")
-        if end < 100:
-            frames.append(f"{end:.2f}%,100% {{opacity:0}}")
-        else:
-            frames.append("100% {opacity:1}")
-        keyframes.append(f"@keyframes count-{step} {{" + "".join(frames) + "}")
-    rules = "".join(
-        f".step-{step} {{animation:count-{step} 6s steps(1,end) infinite}}"
-        for step in range(COUNTER_STEPS + 1)
-    )
-    return """.count-step {display:none}
-@keyframes stack-intro {0% {opacity:0;transform:translateY(5px)} 10%,88% {opacity:1;transform:translateY(0)} 96%,100% {opacity:0;transform:translateY(5px)}}
-@keyframes stack-content {0%,10% {opacity:0} 18%,88% {opacity:1} 96%,100% {opacity:0}}
-""" + "".join(keyframes) + """@media (prefers-reduced-motion:no-preference) {
-.stack-intro {animation:stack-intro 6s ease-out infinite}
-.stack-content {animation:stack-content 6s ease-out infinite}
-.usage-bar {transform-box:fill-box;transform-origin:left center;animation:stack-fill 6s linear infinite}
-.final-count {display:none}
-.count-step {display:inline;opacity:0}
-""" + rules + "}"
+    return """@media (prefers-reduced-motion:no-preference) {
+@keyframes stack-fill {from {transform:scaleX(0)} to {transform:scaleX(1)}}
+.usage-bar {transform-box:fill-box;transform-origin:left center;animation:stack-fill 1.3s ease-out 1 both}
+}"""
 
 
 def _counter(row: LanguageRow, x: float, y: float, color: str) -> str:
-    attrs = f'x="{x}" y="{y}" text-anchor="end" font-family="{MONO}" font-size="15" font-weight="700" fill="{color}"'
-    parts = [f'<text class="final-count" {attrs}>{row.percentage:.1f}%</text>']
-    for step in range(COUNTER_STEPS + 1):
-        progress = 1 - (1 - step / COUNTER_STEPS) ** 3
-        value = row.percentage * progress
-        parts.append(f'<text class="count-step step-{step}" {attrs} aria-hidden="true">{value:.1f}%</text>')
-    return "".join(parts)
+    return f'<text class="final-count" x="{x}" y="{y}" text-anchor="end" font-family="{MONO}" font-size="15" font-weight="700" fill="{color}">{row.percentage:.1f}%</text>'
 
 
 def render_stack_svg(

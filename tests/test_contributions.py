@@ -15,7 +15,8 @@ from app import app
 from services import contributions as service
 from services.contributions import ContributionDay, fetch_contributions, make_report, parse_public_calendar
 from services.github import GitHubClientError
-from renderers.contributions import grid_geometry, render_contributions_svg, snake_route
+from renderers.contributions import grid_geometry, render_contributions_svg
+from renderers.snake import SNAKE_LENGTH, plan_snake
 
 
 AS_OF = date(2026, 10, 3)
@@ -165,14 +166,6 @@ class ContributionSvgTests(unittest.TestCase):
         self.report = make_report('test', days_with_counts({AS_OF:5, AS_OF-timedelta(days=1):2}), AS_OF, 'github-public-calendar')
         self.ns = {'s':'http://www.w3.org/2000/svg'}
 
-    def test_snake_route_is_closed_adjacent_and_has_no_self_intersections(self) -> None:
-        for columns in (1,2,52,53,54):
-            route = snake_route(columns)
-            self.assertEqual(route[0], route[-1])
-            self.assertEqual(len(route)-1, len(set(route[:-1])))
-            self.assertTrue(all(abs(a[0]-b[0])+abs(a[1]-b[1])==1 for a,b in zip(route,route[1:])))
-            self.assertTrue({(col,row) for col in range(columns) for row in range(7)}.issubset(set(route)))
-
     def test_date_alignment_accessibility_no_scripts_and_both_themes(self) -> None:
         _columns, _pitch, positions = grid_geometry(self.report)
         for day in self.report.days:
@@ -183,9 +176,9 @@ class ContributionSvgTests(unittest.TestCase):
             cells = tree.findall('.//s:rect[@data-date]',self.ns)
             self.assertEqual(len(cells),365)
             self.assertEqual(sum(int(node.attrib['data-count']) for node in cells),7)
-            self.assertEqual(len(tree.findall('.//s:g[@data-segment]',self.ns)),7)
+            self.assertEqual(len(tree.findall('.//s:g[@data-segment]',self.ns)), SNAKE_LENGTH)
             self.assertIn('prefers-reduced-motion:no-preference',svg)
-            self.assertIn('18s linear',svg)
+            self.assertIn('@keyframes snake-travel',svg)
             description = tree.find('s:desc',self.ns)
             self.assertIsNotNone(description)
             assert description is not None
@@ -196,24 +189,24 @@ class ContributionSvgTests(unittest.TestCase):
                 self.assertLess(float(node.attrib['x'])+float(node.attrib['width']),1052)
                 self.assertLess(float(node.attrib['y'])+float(node.attrib['height']),411)
 
-    def test_snake_loop_is_continuous_shared_and_has_no_cell_delay(self) -> None:
-        for seconds in (12,18,120):
+    def test_meals_disappear_until_the_shared_loop_boundary(self) -> None:
+        columns, _, positions = grid_geometry(self.report)
+        plan = plan_snake(columns, tuple((*positions[day.date], day.level) for day in self.report.days if day.level))
+        for seconds in (12, 18, 120):
             svg = render_contributions_svg(report=self.report, theme='dark', seconds=seconds)
             tree = ET.fromstring(svg)
-            style = tree.find('s:style',self.ns)
-            self.assertIsNotNone(style)
-            assert style is not None
-            css = style.text or ''
-            self.assertEqual(css.count('@keyframes snake-travel'),1)
-            self.assertNotIn('@keyframes snake-0',css)
-            self.assertNotIn('cell-return',css)
-            self.assertNotIn('class="cell-',svg)
-            self.assertIn(f'animation:snake-travel {seconds}s linear',css)
-            self.assertIn('0.00000%{transform:translate(',css)
-            self.assertIn('100.00000%{transform:translate(',css)
-            self.assertNotIn('0%,5%',css)
-            self.assertNotIn('83.00000%',css)
-            self.assertLess(css.count('@keyframes'),4)
+            css = tree.find('s:style', self.ns).text
+            duration = plan.duration(seconds)
+            self.assertEqual(css.count('@keyframes snake-travel'), 1)
+            self.assertIn(f'animation:snake-travel {duration:g}s linear', css)
+            for (col, row), step in plan.meals:
+                progress = 100 * step / (len(plan.route)-1)
+                self.assertIn(f'{progress:.6f}%,100%{{opacity:0}}', css)
+                self.assertIn(f'.food-{col}-{row}' + '{animation:' + f'food-{col}-{row} {duration:g}s steps(1,end) infinite', css)
+            segments = tree.findall('.//s:g[@data-segment]', self.ns)
+            sizes = {int(part.attrib['data-segment']): float(part.find('s:rect', self.ns).attrib['width']) for part in segments}
+            self.assertTrue(all(sizes[i] > sizes[i+1] for i in range(SNAKE_LENGTH - 1)))
+            self.assertFalse(tree.findall('.//s:g[@data-snake]/s:g/s:circle', self.ns))
 
     def test_static_mode_has_no_animation_keyframes(self) -> None:
         svg = render_contributions_svg(report=self.report, theme='light', animate=False)

@@ -7,7 +7,8 @@ from urllib.parse import urlencode
 
 from services.contribution_overview import ContributionOverview, ProjectContribution
 from services.contributions import ContributionReport
-from renderers.contributions import DEFAULT_ANIMATION_SECONDS, PALETTES, SNAKE_LENGTH, animation_css, grid_geometry, snake_route
+from renderers.contributions import DEFAULT_ANIMATION_SECONDS, PALETTES, grid_geometry
+from renderers.snake import plan_snake, snake_css, snake_markup
 
 
 WIDTH, HEIGHT = 850, 502
@@ -118,12 +119,13 @@ def render_profile_contributions(
     overview = report.overview or ContributionOverview()
     columns, pitch, positions = grid_geometry(report, grid_width=715, max_pitch=13.5)
     origin_x = GRID_X
-    route = snake_route(columns)
-    css = animation_css(route, pitch, seconds, origin_x=origin_x, origin_y=GRID_Y) if animate else '.snake-part{display:none}'
+    plan = plan_snake(columns, tuple((*positions[day.date], day.level) for day in report.days if day.level > 0)) if animate and section != 'activity' else None
+    duration = plan.duration(seconds) if plan else seconds
+    css = snake_css(plan, pitch, duration, origin_x, GRID_Y) if plan else '.snake-part{display:none}'
     historical = report.today is not None and report.as_of < report.today
     streak_label = 'Year-end streak' if historical else 'Current streak'
     title = f'{report.total:,} contributions in {report.year}' if not report.repository else f'{report.total:,} commits in {report.repository.split("/")[-1]} · {report.year}'
-    description = f'{report.days[0].date} to {report.as_of}: {report.total} contributions, {report.active_days} active days, {streak_label.lower()} {report.current_streak} days, longest streak {report.longest_streak} days within this year. {overview.message} Activity percentages use known events. The snake is decorative and loops continuously without changing calendar cells.'
+    description = f'{report.days[0].date} to {report.as_of}: {report.total} contributions, {report.active_days} active days, {streak_label.lower()} {report.current_streak} days, longest streak {report.longest_streak} days within this year. {overview.message} Activity percentages use known events. The snake eats levels 1 through 4; eaten cells return together when it reaches home. Contribution counts remain unchanged.'
     view_y, view_height = (0,210) if section == 'calendar' else (262,240) if section == 'activity' else (0,HEIGHT)
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{view_height}" viewBox="0 {view_y} {WIDTH} {view_height}" role="img" aria-labelledby="title desc"><title id="title">{escape(title)} — @{escape(report.username)}</title><desc id="desc">{escape(description)}</desc><style>{theme_css}{css}</style>']
     parts.append(f'<rect width="{WIDTH}" height="{HEIGHT}" fill="{p["bg"]}"/>')
@@ -136,26 +138,21 @@ def render_profile_contributions(
             parts.append(text(origin_x+column*pitch-5, 61, day.strftime('%b'), 11, p['muted']))
             previous_month = day.month
     for row, label in ((1,'Mon'),(3,'Wed'),(5,'Fri')):
-        parts.append(text(origin_x-17, GRID_Y+row*pitch+4, label, 11, p['muted'], 'text-anchor="end"'))
+        parts.append(text(origin_x-24, GRID_Y+row*pitch+4, label, 11, p['muted'], 'text-anchor="end"'))
     tile = pitch-3.5
     for item in report.days:
         col, row = positions[item.date]
         x, y = origin_x+col*pitch, GRID_Y+row*pitch
-        parts.append(f'<rect data-date="{item.date}" data-count="{item.count}" data-level="{item.level}" x="{x-tile/2:.3f}" y="{y-tile/2:.3f}" width="{tile:.3f}" height="{tile:.3f}" rx="1.5" fill="{p["cells"][item.level]}" stroke="{p["border"]}" stroke-width=".35"><title>{item.date}: {item.count} contributions</title></rect>')
+        if plan and item.level > 0:
+            parts.append(f'<rect x="{x-tile/2:.3f}" y="{y-tile/2:.3f}" width="{tile:.3f}" height="{tile:.3f}" rx="1.5" fill="{p["cells"][0]}" stroke="{p["border"]}" stroke-width=".35"/>')
+        food_class = f'food-{col}-{row}' if item.level > 0 else ''
+        parts.append(f'<rect class="{food_class}" data-date="{item.date}" data-count="{item.count}" data-level="{item.level}" x="{x-tile/2:.3f}" y="{y-tile/2:.3f}" width="{tile:.3f}" height="{tile:.3f}" rx="1.5" fill="{p["cells"][item.level]}" stroke="{p["border"]}" stroke-width=".35"><title>{item.date}: {item.count} contributions</title></rect>')
     for day, (col, row) in positions.items():
 
         if day > report.as_of:
             parts.append(f'<rect data-future-date="{day}" x="{origin_x+col*pitch-tile/2:.3f}" y="{GRID_Y+row*pitch-tile/2:.3f}" width="{tile:.3f}" height="{tile:.3f}" rx="1.5" fill="{p["cells"][0]}" opacity=".4"><title>{day}: Future date</title></rect>')
-    parts.append('<g data-snake="true" aria-hidden="true">')
-    for segment in reversed(range(SNAKE_LENGTH)):
-        col, row = route[(-segment) % (len(route)-1)]
-        size = pitch-2 if segment == 0 else tile*(1-segment*.055)
-        color = p['head'] if segment == 0 else p['snake']
-        parts.append(f'<g data-segment="{segment}" class="snake-part snake-{segment}" transform="translate({origin_x+col*pitch:.3f},{GRID_Y+row*pitch:.3f})"><rect x="{-size/2:.3f}" y="{-size/2:.3f}" width="{size:.3f}" height="{size:.3f}" rx="2.5" fill="{color}" opacity="{1-segment*.08:.2f}"/>')
-        if segment == 0:
-            parts.append(f'<circle cx="-2.5" cy="-1.5" r="1" fill="{p["eye"]}"/><circle cx="2.5" cy="-1.5" r="1" fill="{p["eye"]}"/>')
-        parts.append('</g>')
-    parts.append('</g>')
+    if plan:
+        parts.append(snake_markup(plan, pitch, origin_x, GRID_Y, p['snake']))
     parts.append(text(20, 192, f'{report.days[0].date:%b %d} – {report.days[-1].date:%b %d, %Y}', 11, p['muted']))
     parts.append(text(802, 192, 'More', 11, p['muted']))
     parts.append(text(708, 192, 'Less', 11, p['muted'], 'text-anchor="end"'))

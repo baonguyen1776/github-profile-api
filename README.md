@@ -76,7 +76,7 @@ HTTP Request  ──►  Routes (FastAPI)  ──►  Services (Data & Logic)  �
 
 2. **Pure CSS Animation Engine (No Client Scripts)**:
    - Because GitHub strips `<script>` tags from images, all dynamic effects rely entirely on CSS `@keyframes`.
-   - **Continuous Snake Route**: The `snake_route()` algorithm determines a closed-loop traversal around contribution cells. All seven body segments share a single `@keyframes snake-travel` definition with staggered `animation-delay` offsets, achieving a lightweight SVG footprint and buttery-smooth 60fps movement.
+   - **Food-driven Snake Route**: `plan_snake()` eats contribution levels 1 → 4, using BFS for nearby food and a body-state A* search when the moving tail blocks a route. Higher levels can be crossed without being eaten. The snake starts and returns at the upper-left edge; purple rounded squares taper towards its tail. Eaten cells stay empty until the snake returns to its complete starting pose, when the whole map resets. All segments share one CSS movement animation; actual counts and tooltips remain unchanged.
 
 3. **Hybrid Data Collection (GraphQL + Scraper Fallback)**:
    - **Authenticated Mode**: Queries GitHub's GraphQL API (`contributionsCollection`) in quarterly slices (<= 92 days) to retrieve comprehensive commit days and activity breakdowns without omission.
@@ -127,7 +127,7 @@ Encode literal `+` as `%2B` (`C++` becomes `C%2B%2B`), `#` as `%23`, and spaces 
 </picture>
 ```
 
-The root [`profile.json`](profile.json) now only configures header text and the contribution animation duration:
+The root [`profile.json`](profile.json) configures header text and the minimum contribution animation duration:
 
 ```json
 {
@@ -138,7 +138,7 @@ The root [`profile.json`](profile.json) now only configures header text and the 
 ```
 
 - Legacy `stack_card_languages`, `stack_card_technologies`, `stack_card_editors`, and `focus_areas` server settings are no longer used by `/api/stack`. Move any existing choices into README URL parameters. The header no longer displays the old `stack` language line or the decorative ASCII labels.
-- `contribution_animation_seconds`: Configure the loop duration of the snake animation (between `12` and `120` seconds).
+- `contribution_animation_seconds`: Configure the minimum loop duration (between `12` and `120` seconds). Longer food routes take at least 100 ms per step, so dense calendars can exceed this duration. Empty calendars have no snake. With reduced motion, the full calendar stays visible and the snake is hidden.
 
 ---
 
@@ -168,3 +168,7 @@ python -m unittest discover tests
 1. Import this repository into [Vercel](https://vercel.com).
 2. Vercel automatically detects the FastAPI application in `app.py`.
 3. *(Recommended)* Configure a `GITHUB_TOKEN` environment variable under **Settings → Environment Variables** on Vercel to increase the GitHub API rate limit from 60 to 5,000 requests/hour.
+
+### Tech stack motion
+
+Language percentages are static text. Usage bars fill once over 1.3 seconds and stay filled; headings and badges remain visible. Reloading the image starts a new entrance animation. Reduced-motion preferences show the final state immediately. The SVG no longer embeds intermediate percentage-counter layers.

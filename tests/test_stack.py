@@ -115,7 +115,7 @@ class StackSvgTests(unittest.TestCase):
     def setUp(self) -> None:
         self.report = LanguageReport("test", 2, {"TypeScript": 3400, "Python": 6600})
 
-    def test_self_contained_icons_and_increasing_counters_for_both_themes(self) -> None:
+    def test_self_contained_icons_static_counts_and_one_shot_bars(self) -> None:
         rows = select_language_rows(self.report, ['TypeScript', 'Missing', 'Python'])
         ns = {'svg': 'http://www.w3.org/2000/svg'}
         for theme in ('light', 'dark'):
@@ -127,11 +127,12 @@ class StackSvgTests(unittest.TestCase):
                 self.assertEqual(len(icons), 2)
                 self.assertTrue(all(icon.attrib['href'].startswith('data:image/svg+xml;base64,') for icon in icons))
                 for group, row in zip(tree.findall('.//svg:g[@data-usage]', ns), rows):
-                    counters = [float((node.text or '').rstrip('%')) for node in group.findall('svg:text', ns) if 'count-step' in node.attrib.get('class', '')]
-                    self.assertGreater(len(counters), 2)
-                    self.assertEqual(counters[0], 0.0)
-                    self.assertEqual(counters[-1], row.percentage)
-                    self.assertEqual(counters, sorted(counters))
+                    counters = group.findall('svg:text[@class="final-count"]', ns)
+                    self.assertEqual(len(counters), 1)
+                    self.assertEqual(counters[0].text, f'{row.percentage:.1f}%')
+                self.assertNotIn('count-step', svg)
+                self.assertNotIn('infinite', svg)
+                self.assertIn('animation:stack-fill 1.3s ease-out 1 both', svg)
                 self.assertFalse(tree.findall('.//svg:script', ns))
                 self.assertIn('34.0%', svg)
                 self.assertIn('prefers-reduced-motion', svg)
