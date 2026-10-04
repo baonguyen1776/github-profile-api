@@ -26,8 +26,9 @@ class SnakePlan:
 def _neighbors(point: Point, columns: int) -> Iterator[Point]:
     x, y = point
     for nx, ny in ((x - 1, y), (x, y + 1), (x + 1, y), (x, y - 1)):
-        # The extra column at the left is the home/return lane.
-        if -1 <= nx < columns and 0 <= ny < 7:
+        # One empty lane surrounds the calendar. It lets the snake route around
+        # contribution cells without treating uneaten food as walkable ground.
+        if -1 <= nx <= columns and -1 <= ny <= 7:
             yield nx, ny
 
 
@@ -46,11 +47,17 @@ def _follow(body: Body, path: Sequence[Point]) -> Body | None:
     return body
 
 
-def _grid_path(body: Body, targets: set[Point], columns: int) -> list[Point] | None:
+def _grid_path(
+    body: Body,
+    targets: set[Point],
+    columns: int,
+    obstacles: set[Point] | None = None,
+) -> list[Point] | None:
     """BFS between cells, treating the current body (except its tail) as blocked."""
     queue = deque([body[0]])
     previous: dict[Point, Point | None] = {body[0]: None}
-    blocked = set(body[:-1])
+    blocked = set(body[:-1]) | (obstacles or set())
+    blocked -= targets
     while queue:
         point = queue.popleft()
         if point in targets:
@@ -68,16 +75,54 @@ def _grid_path(body: Body, targets: set[Point], columns: int) -> list[Point] | N
     return None
 
 
-def _path(body: Body, targets: set[Point], columns: int, finish: Sequence[Point] | None = None) -> list[Point]:
+def _position_path(
+    start: Point,
+    targets: set[Point],
+    columns: int,
+    obstacles: set[Point],
+) -> list[Point] | None:
+    """Cheap reachability check that ignores the moving body, not food walls."""
+    queue = deque([start])
+    previous: dict[Point, Point | None] = {start: None}
+    while queue:
+        point = queue.popleft()
+        if point in targets:
+            path = []
+            parent = previous[point]
+            while parent is not None:
+                path.append(point)
+                point = parent
+                parent = previous[point]
+            return path[::-1]
+        for neighbor in _neighbors(point, columns):
+            if neighbor not in obstacles and neighbor not in previous:
+                previous[neighbor] = point
+                queue.append(neighbor)
+    return None
+
+
+def _path(
+    body: Body,
+    targets: set[Point],
+    columns: int,
+    obstacles: set[Point] | None = None,
+    finish: Sequence[Point] | None = None,
+) -> list[Point]:
+    obstacles = obstacles or set()
+
     def acceptable(state: Body) -> bool:
         if state[0] not in targets:
             return False
         if finish is not None:
             return _follow(state, finish) is not None
-        # Avoid eating into a pocket with no route back towards the tail.
-        return _grid_path(state, {state[-1]}, columns) is not None
+        # Ensure food walls do not seal the head away from the outer lane. Body
+        # motion is handled by A* itself and must not fail this topology check.
+        outer = {(x, y) for x in range(-1, columns + 1) for y in (-1, 7)}
+        outer.update({(-1, y) for y in range(8)})
+        outer.update({(columns, y) for y in range(8)})
+        return _position_path(state[0], outer, columns, obstacles) is not None
 
-    quick = _grid_path(body, targets, columns)
+    quick = _grid_path(body, targets, columns, obstacles)
     if quick is not None:
         state = _follow(body, quick)
         if state is not None and acceptable(state):
@@ -103,6 +148,8 @@ def _path(body: Body, targets: set[Point], columns: int, finish: Sequence[Point]
                 state = parents[state]
             return path[::-1]
         for neighbor in _neighbors(state[0], columns):
+            if neighbor in obstacles and neighbor not in targets:
+                continue
             moved = _advance(state, neighbor)
             if moved is not None and cost + 1 < costs.get(moved, float('inf')):
                 costs[moved] = cost + 1
@@ -120,6 +167,7 @@ def plan_snake(columns: int, food: tuple[tuple[int, int, int], ...]) -> SnakePla
     body = tuple((-1, row) for row in range(SNAKE_LENGTH))
     route = [body[0]]
     meals: list[tuple[Point, int]] = []
+    uneaten = {(x, y): level for x, y, level in food}
 
     def walk(path: Sequence[Point], remaining: set[Point] | None = None) -> None:
         nonlocal body
@@ -133,14 +181,37 @@ def plan_snake(columns: int, food: tuple[tuple[int, int, int], ...]) -> SnakePla
                 remaining.remove(point)
                 meals.append((point, len(route) - 1))
 
-    for level in range(1, 5):
-        remaining = {(x, y) for x, y, item_level in food if item_level == level}
-        # A new level can unlock food underneath the current head.
-        if body[0] in remaining:
-            remaining.remove(body[0])
-            meals.append((body[0], len(route) - 1))
-        while remaining:
-            walk(_path(body, remaining, columns), remaining)
+    while uneaten:
+        # Prefer the lowest reachable level. In a pathological dense calendar,
+        # higher-level cells can completely enclose lower-level food. Opening
+        # the lowest reachable cell is then necessary; we still never cross an
+        # uneaten cell as if it were empty ground.
+        for level in range(1, 5):
+            remaining = {point for point, item_level in uneaten.items() if item_level == level}
+            if not remaining:
+                continue
+            if body[0] in remaining:
+                path: list[Point] = []
+            else:
+                obstacles = set(uneaten) - remaining
+                reachable_path = _position_path(body[0], remaining, columns, obstacles)
+                if reachable_path is None:
+                    continue
+                try:
+                    path = _path(body, remaining, columns, obstacles)
+                except ValueError:
+                    continue
+            before = set(remaining)
+            if not path:
+                remaining.remove(body[0])
+                meals.append((body[0], len(route) - 1))
+            else:
+                walk(path, remaining)
+            for point in before - remaining:
+                uneaten.pop(point)
+            break
+        else:
+            raise ValueError('No reachable contribution cell for the snake')
 
     if meals:
         # Enter home from below, restoring the complete initial body pose.

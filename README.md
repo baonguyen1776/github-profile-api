@@ -76,7 +76,7 @@ HTTP Request  ──►  Routes (FastAPI)  ──►  Services (Data & Logic)  �
 
 2. **Pure CSS Animation Engine (No Client Scripts)**:
    - Because GitHub strips `<script>` tags from images, all dynamic effects rely entirely on CSS `@keyframes`.
-   - **Food-driven Snake Route**: `plan_snake()` eats contribution levels 1 → 4, using BFS for nearby food and a body-state A* search when the moving tail blocks a route. Higher levels can be crossed without being eaten. The snake starts and returns at the upper-left edge; purple rounded squares taper towards its tail. Eaten cells stay empty until the snake returns to its complete starting pose, when the whole map resets. All segments share one CSS movement animation; actual counts and tooltips remain unchanged.
+   - **Food-driven Snake Route**: `plan_snake()` prefers reachable contribution levels 1 → 4, using BFS for nearby food and a body-state A* search when the moving tail blocks a route. Every uneaten contribution cell is an obstacle; a one-cell outer lane around the calendar lets the snake bypass colored walls without crossing them. If higher-level cells completely enclose lower-level food, the lowest reachable cell is eaten to open a valid route. The snake starts and returns at the upper-left edge; purple rounded squares taper towards its tail. Eaten cells stay empty until the snake returns to its complete starting pose, when the whole map resets. All segments share one CSS movement animation; actual counts and tooltips remain unchanged.
 
 3. **Hybrid Data Collection (GraphQL + Scraper Fallback)**:
    - **Authenticated Mode**: Queries GitHub's GraphQL API (`contributionsCollection`) in quarterly slices (<= 92 days) to retrieve comprehensive commit days and activity breakdowns without omission.
